@@ -30,7 +30,7 @@ export function useCards() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setCards(data || []);
+      setCards(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Erro ao buscar cartões:', err);
     } finally {
@@ -38,9 +38,54 @@ export function useCards() {
     }
   };
 
+  const addCard = async (newCard: Omit<Card, 'id' | 'created_at'>) => {
+    try {
+      const { data, error } = await supabase
+        .from('cards')
+        .insert([{ ...newCard, user_id: user?.id }]);
+
+      if (error) throw error;
+      if (data && data.length > 0) {
+        setCards((prevCards) => [data[0], ...prevCards]);
+      }
+    } catch (err) {
+      console.error('Erro ao adicionar cartão:', err);
+    }
+  };
+
+  const updateCard = async (updatedCard: Card) => {
+    try {
+      const { error } = await supabase
+        .from('cards')
+        .update(updatedCard)
+        .eq('id', updatedCard.id);
+
+      if (error) throw error;
+      setCards((prevCards) =>
+        prevCards.map((card) => (card.id === updatedCard.id ? updatedCard : card))
+      );
+    } catch (err) {
+      console.error('Erro ao atualizar cartão:', err);
+    }
+  };
+
+  const deleteCard = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('cards')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      setCards((prevCards) => prevCards.filter((card) => card.id !== id));
+    } catch (err) {
+      console.error('Erro ao excluir cartão:', err);
+    }
+  };
+
   useEffect(() => {
     fetchCards();
   }, [user]);
 
-  return { cards, loading, refetch: fetchCards };
+  return { cards, loading, refetch: fetchCards, addCard, updateCard, deleteCard };
 }

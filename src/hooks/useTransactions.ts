@@ -82,6 +82,7 @@ export function useTransactions() {
       if (error) throw error;
       
       setTransactions(prev => [data, ...prev]);
+      recalculateBalance();
       return { data, error: null };
     } catch (err: any) {
       return { data: null, error: err.message };
@@ -108,6 +109,9 @@ export function useTransactions() {
           transaction.id === id ? data : transaction
         )
       );
+
+      recalculateBalance();
+
       return { data, error: null };
     } catch (err: any) {
       return { data: null, error: err.message };
@@ -125,6 +129,7 @@ export function useTransactions() {
       if (error) throw error;
 
       setTransactions(prev => prev.filter(transaction => transaction.id !== id));
+      recalculateBalance();
       return { error: null };
     } catch (err: any) {
       return { error: err.message };
@@ -144,7 +149,14 @@ export function useTransactions() {
       is_recurring: transaction.is_recurring
     };
 
-    return await createTransaction(duplicateData);
+    const result = await createTransaction(duplicateData);
+    recalculateBalance();
+    return result;
+  };
+
+  const recalculateBalance = () => {
+    // Implement the logic to recalculate the balance based on the updated transactions
+    // This could involve summing up the amounts of all transactions, considering their type (income/expense)
   };
 
   useEffect(() => {

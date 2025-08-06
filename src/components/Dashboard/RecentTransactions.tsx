@@ -1,49 +1,6 @@
 import React from 'react';
 import { MoreHorizontal, Edit2, Trash2 } from 'lucide-react';
-
-interface Transaction {
-  id: string;
-  description: string;
-  amount: number;
-  category: string;
-  date: string;
-  type: 'income' | 'expense';
-}
-
-const mockTransactions: Transaction[] = [
-  {
-    id: '1',
-    description: 'Salário Empresa XYZ',
-    amount: 5500,
-    category: 'Salário',
-    date: '2025-01-15',
-    type: 'income'
-  },
-  {
-    id: '2',
-    description: 'Supermercado Pão de Açúcar',
-    amount: -450.50,
-    category: 'Alimentação',
-    date: '2025-01-14',
-    type: 'expense'
-  },
-  {
-    id: '3',
-    description: 'Netflix',
-    amount: -29.90,
-    category: 'Entretenimento',
-    date: '2025-01-13',
-    type: 'expense'
-  },
-  {
-    id: '4',
-    description: 'Freelance Design',
-    amount: 800,
-    category: 'Freelance',
-    date: '2025-01-12',
-    type: 'income'
-  }
-];
+import { useTransactions } from '../../hooks/useTransactions';
 
 interface TransactionActionsProps {
   transaction: Transaction;
@@ -92,6 +49,7 @@ function TransactionActions({ transaction, onEdit, onDelete }: TransactionAction
 }
 
 export default function RecentTransactions() {
+  const { transactions } = useTransactions();
   const [editingTransaction, setEditingTransaction] = React.useState<Transaction | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState<string | null>(null);
 
@@ -125,7 +83,7 @@ export default function RecentTransactions() {
         </div>
         
         <div className="divide-y divide-gray-200 dark:divide-gray-700">
-          {mockTransactions.map((transaction) => (
+          {transactions.slice(0, 5).map((transaction) => (
             <div key={transaction.id} className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -133,7 +91,7 @@ export default function RecentTransactions() {
                     {transaction.description}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {transaction.category} • {new Date(transaction.date).toLocaleDateString('pt-BR')}
+                    {transaction.category} • {new Date(transaction.due_date).toLocaleDateString('pt-BR')}
                   </p>
                 </div>
                 

@@ -1,5 +1,6 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Target } from 'lucide-react';
+import { useTransactions } from '../../hooks/useTransactions';
 
 interface SummaryCardProps {
   title: string;
@@ -33,11 +34,23 @@ function SummaryCard({ title, value, change, changeType, icon }: SummaryCardProp
 }
 
 export default function FinancialSummary() {
+  const { transactions } = useTransactions();
+
+  const totalIncome = transactions
+    .filter(t => t.type === 'income')
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const totalExpenses = transactions
+    .filter(t => t.type === 'expense')
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const totalBalance = totalIncome + totalExpenses;
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       <SummaryCard
         title="Saldo Total"
-        value="R$ 15.750"
+        value={`R$ ${totalBalance.toLocaleString('pt-BR')}`}
         change="+5.2% este mês"
         changeType="positive"
         icon={<DollarSign className="h-6 w-6 text-blue-600 dark:text-blue-400" />}
@@ -45,7 +58,7 @@ export default function FinancialSummary() {
       
       <SummaryCard
         title="Receitas"
-        value="R$ 8.500"
+        value={`R$ ${totalIncome.toLocaleString('pt-BR')}`}
         change="+2.1% este mês"
         changeType="positive"
         icon={<TrendingUp className="h-6 w-6 text-green-600 dark:text-green-400" />}
@@ -53,9 +66,9 @@ export default function FinancialSummary() {
       
       <SummaryCard
         title="Despesas"
-        value="R$ 4.250"
+        value={`R$ ${Math.abs(totalExpenses).toLocaleString('pt-BR')}`}
         change="-1.8% este mês"
-        changeType="positive"
+        changeType="negative"
         icon={<TrendingDown className="h-6 w-6 text-red-600 dark:text-red-400" />}
       />
       

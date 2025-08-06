@@ -199,7 +199,7 @@ export default function TransactionList() {
         onSubmit={handleFormSubmit}
         initialData={editingTransaction ? {
           card_id: editingTransaction.card_id,
-          amount: transaction.amount,
+          amount: editingTransaction.amount, // Corrected line
           description: editingTransaction.description,
           category: editingTransaction.category,
           type: editingTransaction.type,
