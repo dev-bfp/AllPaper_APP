@@ -1,1 +1,0 @@
-AllPaper_APP
