@@ -36,15 +36,23 @@ function SummaryCard({ title, value, change, changeType, icon }: SummaryCardProp
 export default function FinancialSummary() {
   const { transactions } = useTransactions();
 
-  const totalIncome = transactions
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+
+  const transactionsThisMonth = transactions.filter(t => {
+    const transactionDate = new Date(t.due_date);
+    return transactionDate.getMonth() === currentMonth && transactionDate.getFullYear() === currentYear;
+  });
+
+  const totalIncome = transactionsThisMonth
     .filter(t => t.type === 'income')
     .reduce((acc, t) => acc + t.amount, 0);
 
-  const totalExpenses = transactions
+  const totalExpenses = transactionsThisMonth
     .filter(t => t.type === 'expense')
     .reduce((acc, t) => acc + t.amount, 0);
 
-  const totalBalance = totalIncome + totalExpenses;
+  const totalBalance = totalIncome - totalExpenses;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

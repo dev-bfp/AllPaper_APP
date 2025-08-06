@@ -66,22 +66,33 @@ export function useTransactions() {
     if (!user) throw new Error('Usuário não autenticado');
 
     try {
+      const transactionsToInsert = [];
+      const { installments = 1, amount, ...baseData } = transactionData;
+      const installmentAmount = amount / installments;
+
+      for (let i = 0; i < installments; i++) {
+        const installmentData = {
+          ...baseData,
+          user_id: user.id,
+          amount: installmentAmount,
+          current_installment: i + 1,
+          due_date: new Date(new Date(baseData.due_date).setMonth(new Date(baseData.due_date).getMonth() + i)).toISOString().split('T')[0],
+          is_recurring: baseData.is_recurring || false
+        };
+        transactionsToInsert.push(installmentData);
+      }
+
       const { data, error } = await supabase
         .from('transactions')
-        .insert([{
-          ...transactionData,
-          user_id: user.id,
-          is_recurring: transactionData.is_recurring || false
-        }])
+        .insert(transactionsToInsert)
         .select(`
           *,
           card:cards(name, bank)
-        `)
-        .single();
+        `);
 
       if (error) throw error;
       
-      setTransactions(prev => [data, ...prev]);
+      setTransactions(prev => [...data, ...prev]);
       recalculateBalance();
       return { data, error: null };
     } catch (err: any) {

@@ -83,9 +83,35 @@ export function useCards() {
     }
   };
 
+  const recalculateCardBalance = async (cardId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('amount, type')
+        .eq('card_id', cardId);
+
+      if (error) throw error;
+
+      const totalUsed = data.reduce((acc: number, transaction: { amount: number, type: string }) => {
+        return transaction.type === 'expense' ? acc + transaction.amount : acc;
+      }, 0);
+
+      const cardToUpdate = cards.find(card => card.id === cardId);
+      if (cardToUpdate) {
+        const updatedCard = {
+          ...cardToUpdate,
+          current_balance: totalUsed
+        };
+        await updateCard(updatedCard);
+      }
+    } catch (err) {
+      console.error('Erro ao recalcular saldo do cartão:', err);
+    }
+  };
+
   useEffect(() => {
     fetchCards();
   }, [user]);
 
-  return { cards, loading, refetch: fetchCards, addCard, updateCard, deleteCard };
+  return { cards, loading, refetch: fetchCards, addCard, updateCard, deleteCard, recalculateCardBalance };
 }
