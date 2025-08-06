@@ -8,6 +8,7 @@ import RecentTransactions from './components/Dashboard/RecentTransactions';
 import ExpenseChart from './components/Dashboard/ExpenseChart';
 import GoalCard from './components/Goals/GoalCard';
 import CardList from './components/Cards/CardList';
+import TransactionList from './components/Transactions/TransactionList';
 
 function App() {
   const { user, loading } = useAuth();
@@ -63,6 +64,9 @@ function App() {
       
       case 'cards':
         return <CardList />;
+      
+      case 'transactions':
+        return <TransactionList />;
       
       case 'goals':
         return (
