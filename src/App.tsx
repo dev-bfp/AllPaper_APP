@@ -10,6 +10,7 @@ import GoalList from './components/Goals/GoalList';
 import CardList from './components/Cards/CardList';
 import TransactionList from './components/Transactions/TransactionList';
 import PlanningList from './components/Planning/PlanningList';
+import CouplesDashboard from './components/Couples/CouplesDashboard';
 
 function App() {
   const { user, loading } = useAuth();
@@ -56,6 +57,9 @@ function App() {
         return (
           <GoalList />
         );
+      
+      case 'couple':
+        return <CouplesDashboard />;
       
       default:
         return (
