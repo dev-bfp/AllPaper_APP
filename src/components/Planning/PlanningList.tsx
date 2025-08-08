@@ -13,9 +13,10 @@ import {
   CheckCircle,
   AlertCircle,
   XCircle,
-  History
+  History,
+  Undo2
 } from 'lucide-react';
-import { usePlanning } from '../../hooks/usePlanning';
+import { usePlanning, PlanningWithTransaction } from '../../hooks/usePlanning';
 import PlanningForm from './PlanningForm';
 import PlanningHistoryModal from './PlanningHistoryModal';
 import { format } from 'date-fns';
@@ -29,13 +30,15 @@ export default function PlanningList() {
     createPlanning, 
     updatePlanning, 
     deletePlanning,
-    markAsPaid
+    markAsPaid,
+    reversePaidStatus
   } = usePlanning();
 
   const [showForm, setShowForm] = useState(false);
-  const [editingPlanning, setEditingPlanning] = useState<Planning | null>(null);
+  const [editingPlanning, setEditingPlanning] = useState<PlanningWithTransaction | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [showHistory, setShowHistory] = useState<Planning | null>(null);
+  const [showHistory, setShowHistory] = useState<PlanningWithTransaction | null>(null);
+  const [showReverseConfirm, setShowReverseConfirm] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'pending' | 'overdue'>('all');
   const [filterType, setFilterType] = useState<'all' | 'recurring' | 'one-time'>('all');
@@ -52,7 +55,7 @@ export default function PlanningList() {
     return matchesSearch && matchesStatus && matchesType;
   });
 
-  const handleEdit = (planning: Planning) => {
+  const handleEdit = (planning: PlanningWithTransaction) => {
     setEditingPlanning(planning);
     setShowForm(true);
   };
@@ -70,6 +73,14 @@ export default function PlanningList() {
     if (error) {
       alert(`Erro ao marcar como pago: ${error}`);
     }
+  };
+
+  const handleReversePaidStatus = async (id: string) => {
+    const { error } = await reversePaidStatus(id);
+    if (error) {
+      alert(`Erro ao estornar pagamento: ${error}`);
+    }
+    setShowReverseConfirm(null);
   };
 
   const handleFormSubmit = async (data: CreatePlanningData) => {
@@ -229,6 +240,7 @@ export default function PlanningList() {
                 onEdit={handleEdit}
                 onDelete={(id) => setDeleteConfirm(id)}
                 onMarkAsPaid={handleMarkAsPaid}
+                onReversePaidStatus={(id) => setShowReverseConfirm(id)}
                 onShowHistory={(planning) => setShowHistory(planning)}
                 getStatusIcon={getStatusIcon}
                 getStatusText={getStatusText}
@@ -291,16 +303,45 @@ export default function PlanningList() {
           </div>
         </div>
       )}
+
+      {/* Modal de Confirmação de Estorno */}
+      {showReverseConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-sm mx-4">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+              Confirmar Estorno
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+              Tem certeza que deseja estornar este pagamento? A transação vinculada será excluída e o status voltará para "Em Aberto".
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowReverseConfirm(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleReversePaidStatus(showReverseConfirm)}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-md"
+              >
+                Estornar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 interface PlanningItemProps {
-  planning: Planning;
-  onEdit: (planning: Planning) => void;
+  planning: PlanningWithTransaction;
+  onEdit: (planning: PlanningWithTransaction) => void;
   onDelete: (id: string) => void;
   onMarkAsPaid: (id: string) => void;
-  onShowHistory: (planning: Planning) => void;
+  onReversePaidStatus: (id: string) => void;
+  onShowHistory: (planning: PlanningWithTransaction) => void;
   getStatusIcon: (status: string) => React.ReactNode;
   getStatusText: (status: string) => string;
   getStatusColor: (status: string) => string;
@@ -311,6 +352,7 @@ function PlanningItem({
   onEdit, 
   onDelete, 
   onMarkAsPaid, 
+  onReversePaidStatus,
   onShowHistory,
   getStatusIcon,
   getStatusText,
@@ -386,6 +428,16 @@ function PlanningItem({
               </button>
             )}
 
+            {planning.status === 'paid' && planning.transaction_id && (
+              <button
+                onClick={() => onReversePaidStatus(planning.id)}
+                className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors"
+                title="Estornar pagamento"
+              >
+                <Undo2 className="h-4 w-4 text-red-600" />
+              </button>
+            )}
+
             {planning.installments && planning.installments > 1 && (
               <button
                 onClick={() => onShowHistory(planning)}
@@ -406,16 +458,18 @@ function PlanningItem({
 
               {showActions && (
                 <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-10">
-                  <button
-                    onClick={() => {
-                      onEdit(planning);
-                      setShowActions(false);
-                    }}
-                    className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center space-x-2"
-                  >
-                    <Edit2 className="h-3 w-3" />
-                    <span>Editar</span>
-                  </button>
+                  {planning.status !== 'paid' && (
+                    <button
+                      onClick={() => {
+                        onEdit(planning);
+                        setShowActions(false);
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center space-x-2"
+                    >
+                      <Edit2 className="h-3 w-3" />
+                      <span>Editar</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       onDelete(planning.id);

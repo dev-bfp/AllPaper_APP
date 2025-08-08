@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
+import { Transaction } from './useTransactions';
 
 export interface Planning {
   id: string;
@@ -14,6 +15,8 @@ export interface Planning {
   installments?: number;
   current_installment?: number;
   created_at: string;
+  transaction_id?: string;
+  parent_planning_id?: string;
 }
 
 export interface CreatePlanningData {
@@ -26,8 +29,12 @@ export interface CreatePlanningData {
   current_installment?: number;
 }
 
+export interface PlanningWithTransaction extends Planning {
+  transaction?: Transaction;
+}
+
 export function usePlanning() {
-  const [plannings, setPlannings] = useState<Planning[]>([]);
+  const [plannings, setPlannings] = useState<PlanningWithTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
@@ -39,7 +46,10 @@ export function usePlanning() {
       setLoading(true);
       const { data, error } = await supabase
         .from('plannings')
-        .select('*')
+        .select(`
+          *,
+          transaction:transactions(*)
+        `)
         .eq('user_id', user.id)
         .order('due_date', { ascending: true });
 
@@ -70,6 +80,44 @@ export function usePlanning() {
     }
   };
 
+  const fetchPlanningHistory = async (planningId: string) => {
+    if (!user) return [];
+
+    try {
+      // Buscar o planejamento principal
+      const { data: mainPlanning, error: mainError } = await supabase
+        .from('plannings')
+        .select(`
+          *,
+          transaction:transactions(*)
+        `)
+        .eq('id', planningId)
+        .single();
+
+      if (mainError) throw mainError;
+
+      // Se for parcelado, buscar todas as parcelas relacionadas
+      if (mainPlanning.installments && mainPlanning.installments > 1) {
+        const { data: relatedPlannings, error: relatedError } = await supabase
+          .from('plannings')
+          .select(`
+            *,
+            transaction:transactions(*)
+          `)
+          .or(`parent_planning_id.eq.${planningId},id.eq.${planningId}`)
+          .order('current_installment', { ascending: true });
+
+        if (relatedError) throw relatedError;
+        return relatedPlannings || [];
+      }
+
+      return [mainPlanning];
+    } catch (err: any) {
+      console.error('Erro ao buscar histórico:', err);
+      return [];
+    }
+  };
+
   const createPlanning = async (planningData: CreatePlanningData) => {
     if (!user) throw new Error('Usuário não autenticado');
 
@@ -77,17 +125,27 @@ export function usePlanning() {
       const planningsToInsert = [];
       const { installments = 1, amount, ...baseData } = planningData;
       const installmentAmount = amount / installments;
+      let parentPlanningId: string | null = null;
 
       for (let i = 0; i < installments; i++) {
+        const planningId = crypto.randomUUID();
+        
         const installmentData = {
+          id: planningId,
           ...baseData,
           user_id: user.id,
           amount: installmentAmount,
           current_installment: i + 1,
           installments: installments,
           due_date: new Date(new Date(baseData.due_date).setMonth(new Date(baseData.due_date).getMonth() + i)).toISOString().split('T')[0],
-          status: 'pending' as const
+          status: 'pending' as const,
+          parent_planning_id: i === 0 ? null : parentPlanningId
         };
+        
+        if (i === 0) {
+          parentPlanningId = planningId;
+        }
+        
         planningsToInsert.push(installmentData);
       }
 
@@ -148,9 +206,37 @@ export function usePlanning() {
 
   const markAsPaid = async (id: string) => {
     try {
+      // Primeiro, criar a transação
+      const planning = plannings.find(p => p.id === id);
+      if (!planning) throw new Error('Planejamento não encontrado');
+
+      const transactionData = {
+        user_id: user?.id,
+        amount: planning.type === 'expense' ? -Math.abs(planning.amount) : Math.abs(planning.amount),
+        description: planning.description,
+        category: planning.category,
+        type: 'expense' as const,
+        due_date: planning.due_date,
+        is_recurring: planning.is_recurring,
+        installments: planning.installments,
+        current_installment: planning.current_installment
+      };
+
+      const { data: transactionResult, error: transactionError } = await supabase
+        .from('transactions')
+        .insert([transactionData])
+        .select()
+        .single();
+
+      if (transactionError) throw transactionError;
+
+      // Depois, atualizar o planejamento com o ID da transação
       const { data, error } = await supabase
         .from('plannings')
-        .update({ status: 'paid' })
+        .update({ 
+          status: 'paid',
+          transaction_id: transactionResult.id
+        })
         .eq('id', id)
         .eq('user_id', user?.id)
         .select()
@@ -160,7 +246,58 @@ export function usePlanning() {
 
       setPlannings(prev => 
         prev.map(planning => 
-          planning.id === id ? { ...planning, status: 'paid' as const } : planning
+          planning.id === id ? { 
+            ...planning, 
+            status: 'paid' as const,
+            transaction_id: transactionResult.id,
+            transaction: transactionResult
+          } : planning
+        )
+      );
+
+      return { error: null };
+    } catch (err: any) {
+      return { error: err.message };
+    }
+  };
+
+  const reversePaidStatus = async (id: string) => {
+    try {
+      const planning = plannings.find(p => p.id === id);
+      if (!planning || !planning.transaction_id) {
+        throw new Error('Planejamento não encontrado ou não possui transação vinculada');
+      }
+
+      // Excluir a transação
+      const { error: deleteTransactionError } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', planning.transaction_id);
+
+      if (deleteTransactionError) throw deleteTransactionError;
+
+      // Atualizar o planejamento para pending
+      const { data, error } = await supabase
+        .from('plannings')
+        .update({ 
+          status: 'pending',
+          transaction_id: null
+        })
+        .eq('id', id)
+        .eq('user_id', user?.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setPlannings(prev => 
+        prev.map(planning => 
+          planning.id === id ? { 
+            ...planning, 
+            status: 'pending' as const,
+            transaction_id: undefined,
+            transaction: undefined
+          } : planning
         )
       );
 
@@ -211,10 +348,12 @@ export function usePlanning() {
     plannings,
     loading,
     error,
+    fetchPlanningHistory,
     createPlanning,
     updatePlanning,
     deletePlanning,
     markAsPaid,
+    reversePaidStatus,
     createTransactionFromPlanning,
     refetch: fetchPlannings
   };

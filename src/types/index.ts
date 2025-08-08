@@ -68,5 +68,7 @@ export interface Planning {
   is_recurring: boolean;
   installments?: number;
   current_installment?: number;
+  transaction_id?: string;
+  parent_planning_id?: string;
   created_at: string;
 }
