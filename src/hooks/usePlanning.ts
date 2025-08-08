@@ -98,17 +98,20 @@ export function usePlanning() {
 
       // Se for parcelado, buscar todas as parcelas relacionadas
       if (mainPlanning.installments && mainPlanning.installments > 1) {
-        const { data: relatedPlannings, error: relatedError } = await supabase
+        // Buscar pelo parent_planning_id se este for uma parcela filha
+        const searchId = mainPlanning.parent_planning_id || planningId;
+        
+        const { data: allInstallments, error: installmentsError } = await supabase
           .from('plannings')
           .select(`
             *,
             transaction:transactions(*)
           `)
-          .or(`parent_planning_id.eq.${planningId},id.eq.${planningId}`)
+          .or(`parent_planning_id.eq.${searchId},id.eq.${searchId}`)
           .order('current_installment', { ascending: true });
 
-        if (relatedError) throw relatedError;
-        return relatedPlannings || [];
+        if (installmentsError) throw installmentsError;
+        return allInstallments || [];
       }
 
       return [mainPlanning];
@@ -212,7 +215,7 @@ export function usePlanning() {
 
       const transactionData = {
         user_id: user?.id,
-        amount: planning.type === 'expense' ? -Math.abs(planning.amount) : Math.abs(planning.amount),
+        amount: -Math.abs(planning.amount), // Planejamentos são sempre despesas
         description: planning.description,
         category: planning.category,
         type: 'expense' as const,
@@ -314,7 +317,7 @@ export function usePlanning() {
 
       const transactionData = {
         user_id: user?.id,
-        amount: planning.amount,
+        amount: -Math.abs(planning.amount), // Planejamentos são sempre despesas
         description: planning.description,
         category: planning.category,
         type: 'expense' as const,

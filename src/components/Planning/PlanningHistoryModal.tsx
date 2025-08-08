@@ -1,8 +1,8 @@
 import React from 'react';
-import { X, Calendar, CheckCircle, Clock, XCircle, Plus, Undo2 } from 'lucide-react';
+import { X, Calendar, CheckCircle, Clock, XCircle, Undo2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { usePlanning, PlanningWithTransaction } from '../../hooks/usePlanning';
+import { usePlanning, PlanningWithTransaction, markAsPaid } from '../../hooks/usePlanning';
 
 interface PlanningHistoryModalProps {
   planning: PlanningWithTransaction;
@@ -10,7 +10,7 @@ interface PlanningHistoryModalProps {
 }
 
 export default function PlanningHistoryModal({ planning, onClose }: PlanningHistoryModalProps) {
-  const { createTransactionFromPlanning, fetchPlanningHistory, reversePaidStatus } = usePlanning();
+  const { fetchPlanningHistory, reversePaidStatus, markAsPaid } = usePlanning();
   const [historyItems, setHistoryItems] = React.useState<PlanningWithTransaction[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showReverseConfirm, setShowReverseConfirm] = React.useState<string | null>(null);
@@ -80,13 +80,14 @@ export default function PlanningHistoryModal({ planning, onClose }: PlanningHist
     }
   };
 
-  const handleCreateTransaction = async () => {
-    const { error } = await createTransactionFromPlanning(planning.id);
+  const handleMarkAsPaid = async (planningId: string) => {
+    const { error } = await markAsPaid(planningId);
     if (error) {
       alert(`Erro ao registrar transação: ${error}`);
     } else {
-      alert('Transação registrada com sucesso!');
-      onClose();
+      // Recarregar o histórico
+      const history = await fetchPlanningHistory(planning.id);
+      setHistoryItems(history);
     }
   };
 
@@ -139,13 +140,19 @@ export default function PlanningHistoryModal({ planning, onClose }: PlanningHist
                   <span className="font-medium">Categoria:</span> {planning.category}
                 </div>
                 <div>
-                  <span className="font-medium">Valor Total:</span> {formatAmount(planning.amount * (planning.installments || 1))}
+                  <span className="font-medium">Valor por Parcela:</span> {formatAmount(planning.amount)}
                 </div>
                 <div>
                   <span className="font-medium">Parcelas:</span> {planning.installments || 1}x
                 </div>
                 <div>
+                  <span className="font-medium">Valor Total:</span> {formatAmount(planning.amount * (planning.installments || 1))}
+                </div>
+                <div>
                   <span className="font-medium">Recorrente:</span> {planning.is_recurring ? 'Sim' : 'Não'}
+                </div>
+                <div>
+                  <span className="font-medium">Data Base:</span> {formatDate(planning.due_date)}
                 </div>
               </div>
             </div>
@@ -153,13 +160,19 @@ export default function PlanningHistoryModal({ planning, onClose }: PlanningHist
             {/* Lista de Parcelas */}
             <div className="space-y-3">
               <h4 className="text-lg font-medium text-gray-900 dark:text-white">
-                {historyItems.length > 1 ? 'Histórico de Parcelas' : 'Detalhes do Planejamento'}
+                {historyItems.length > 1 ? `Parcelas (${historyItems.length})` : 'Detalhes do Planejamento'}
               </h4>
               
               {historyItems.map((installment, index) => (
                 <div
                   key={installment.id}
-                  className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg"
+                  className={`p-4 border rounded-lg ${
+                    installment.status === 'paid' 
+                      ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800' 
+                      : installment.status === 'overdue'
+                      ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800'
+                      : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                  }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
@@ -176,7 +189,7 @@ export default function PlanningHistoryModal({ planning, onClose }: PlanningHist
                         </p>
                         {installment.transaction && (
                           <p className="text-xs text-blue-600 dark:text-blue-400">
-                            Transação vinculada: {installment.transaction.description}
+                            Pago em: {formatDate(installment.transaction.created_at)}
                           </p>
                         )}
                       </div>
@@ -198,6 +211,15 @@ export default function PlanningHistoryModal({ planning, onClose }: PlanningHist
                           <Undo2 className="h-4 w-4 text-red-600" />
                         </button>
                       )}
+                      {installment.status === 'pending' && (
+                        <button
+                          onClick={() => handleMarkAsPaid(installment.id)}
+                          className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/20 transition-colors"
+                          title="Marcar como pago"
+                        >
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -205,7 +227,14 @@ export default function PlanningHistoryModal({ planning, onClose }: PlanningHist
             </div>
           </div>
 
-          <div className="flex justify-end p-6 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex justify-between p-6 border-t border-gray-200 dark:border-gray-700">
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {historyItems.length > 1 && (
+                <span>
+                  {historyItems.filter(item => item.status === 'paid').length} de {historyItems.length} parcelas pagas
+                </span>
+              )}
+            </div>
             <button
               onClick={onClose}
               className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"

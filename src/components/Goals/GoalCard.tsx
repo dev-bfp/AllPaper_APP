@@ -1,35 +1,62 @@
 import React from 'react';
-import { Target, Calendar, Edit2, Trash2, MoreVertical } from 'lucide-react';
+import { Target, Calendar, Edit2, Trash2, MoreVertical, TrendingUp, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Goal } from '../../hooks/useGoals';
 
 interface GoalCardProps {
-  name: string;
-  targetAmount: number;
-  currentAmount: number;
-  targetDate: string;
-  description?: string;
+  goal: Goal;
+  progress: {
+    progress: number;
+    remainingAmount: number;
+    daysRemaining: number;
+    isCompleted: boolean;
+    isOverdue: boolean;
+  };
   onEdit?: () => void;
   onDelete?: () => void;
+  onUpdateProgress?: () => void;
 }
 
-export default function GoalCard({ 
-  name, 
-  targetAmount, 
-  currentAmount, 
-  targetDate, 
-  description,
+export default function GoalCard({
+  goal,
+  progress,
   onEdit,
-  onDelete
+  onDelete,
+  onUpdateProgress
 }: GoalCardProps) {
   const [showActions, setShowActions] = React.useState(false);
-  const progress = (currentAmount / targetAmount) * 100;
-  const remainingAmount = targetAmount - currentAmount;
-  const daysRemaining = Math.ceil(
-    (new Date(targetDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
-  );
+
+  const formatAmount = (amount: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('pt-BR');
+  };
+
+  const getStatusColor = () => {
+    if (progress.isCompleted) return 'text-green-600 dark:text-green-400';
+    if (progress.isOverdue) return 'text-red-600 dark:text-red-400';
+    return 'text-blue-600 dark:text-blue-400';
+  };
+
+  const getProgressBarColor = () => {
+    if (progress.isCompleted) return 'bg-green-600';
+    if (progress.isOverdue) return 'bg-red-600';
+    return 'bg-blue-600';
+  };
+
+  const getStatusIcon = () => {
+    if (progress.isCompleted) return <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />;
+    if (progress.isOverdue) return <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />;
+    return <Target className="h-4 w-4 text-blue-600 dark:text-blue-400" />;
+  };
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 relative">
-      {(onEdit || onDelete) && (
+      {(onEdit || onDelete || onUpdateProgress) && (
         <div className="absolute top-4 right-4">
           <div className="relative">
             <button 
@@ -41,6 +68,18 @@ export default function GoalCard({
             
             {showActions && (
               <div className="absolute right-0 mt-1 w-32 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-10">
+                {onUpdateProgress && !progress.isCompleted && (
+                  <button
+                    onClick={() => {
+                      onUpdateProgress();
+                      setShowActions(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center space-x-2"
+                  >
+                    <TrendingUp className="h-3 w-3" />
+                    <span>Progresso</span>
+                  </button>
+                )}
                 {onEdit && (
                   <button
                     onClick={() => {
@@ -73,13 +112,13 @@ export default function GoalCard({
       
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center space-x-3">
-          <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
-            <Target className="h-5 w-5 text-green-600 dark:text-green-400" />
+          <div className={`p-2 rounded-lg ${progress.isCompleted ? 'bg-green-50 dark:bg-green-900/20' : progress.isOverdue ? 'bg-red-50 dark:bg-red-900/20' : 'bg-blue-50 dark:bg-blue-900/20'}`}>
+            {getStatusIcon()}
           </div>
           <div className="pr-8">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">{name}</h3>
-            {description && (
-              <p className="text-sm text-gray-500 dark:text-gray-400">{description}</p>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white">{goal.name}</h3>
+            {goal.description && (
+              <p className="text-sm text-gray-500 dark:text-gray-400">{goal.description}</p>
             )}
           </div>
         </div>
@@ -90,13 +129,13 @@ export default function GoalCard({
           <div className="flex justify-between text-sm mb-2">
             <span className="text-gray-600 dark:text-gray-400">Progresso</span>
             <span className="font-medium text-gray-900 dark:text-white">
-              {progress.toFixed(1)}%
+              {progress.progress.toFixed(1)}%
             </span>
           </div>
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
             <div 
-              className="bg-green-600 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${Math.min(progress, 100)}%` }}
+              className={`${getProgressBarColor()} h-2 rounded-full transition-all duration-300`}
+              style={{ width: `${Math.min(progress.progress, 100)}%` }}
             />
           </div>
         </div>
@@ -105,13 +144,13 @@ export default function GoalCard({
           <div>
             <p className="text-gray-600 dark:text-gray-400">Atual</p>
             <p className="font-medium text-gray-900 dark:text-white">
-              R$ {currentAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              {formatAmount(goal.current_amount)}
             </p>
           </div>
           <div className="text-right">
             <p className="text-gray-600 dark:text-gray-400">Meta</p>
             <p className="font-medium text-gray-900 dark:text-white">
-              R$ {targetAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              {formatAmount(goal.target_amount)}
             </p>
           </div>
         </div>
@@ -121,11 +160,19 @@ export default function GoalCard({
             <div className="flex items-center space-x-2">
               <Calendar className="h-4 w-4 text-gray-400" />
               <span className="text-gray-600 dark:text-gray-400">
-                {daysRemaining > 0 ? `${daysRemaining} dias restantes` : 'Meta vencida'}
+                {progress.daysRemaining > 0 
+                  ? `${progress.daysRemaining} dias restantes` 
+                  : progress.isCompleted 
+                    ? 'Meta concluída!' 
+                    : 'Meta vencida'
+                }
               </span>
             </div>
-            <span className="font-medium text-gray-900 dark:text-white">
-              Faltam R$ {remainingAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            <span className={`font-medium ${getStatusColor()}`}>
+              {progress.isCompleted 
+                ? '🎉 Concluída!' 
+                : `Faltam ${formatAmount(progress.remainingAmount)}`
+              }
             </span>
           </div>
         </div>
