@@ -56,3 +56,17 @@ export interface Budget {
   month: string;
   created_at: string;
 }
+
+export interface Planning {
+  id: string;
+  user_id: string;
+  description: string;
+  amount: number;
+  category: string;
+  due_date: string;
+  status: 'paid' | 'pending' | 'overdue';
+  is_recurring: boolean;
+  installments?: number;
+  current_installment?: number;
+  created_at: string;
+}

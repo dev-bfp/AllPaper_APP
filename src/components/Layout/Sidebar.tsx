@@ -4,7 +4,7 @@ import {
   CreditCard, 
   TrendingUp, 
   Target, 
-  PieChart, 
+  Calendar, 
   Settings,
   Users
 } from 'lucide-react';
@@ -19,7 +19,7 @@ const menuItems = [
   { id: 'transactions', label: 'Transações', icon: TrendingUp },
   { id: 'cards', label: 'Cartões', icon: CreditCard },
   { id: 'goals', label: 'Metas', icon: Target },
-  { id: 'budget', label: 'Orçamento', icon: PieChart },
+  { id: 'planning', label: 'Planejamento', icon: Calendar },
   { id: 'couple', label: 'Casal', icon: Users },
   { id: 'settings', label: 'Configurações', icon: Settings },
 ];
