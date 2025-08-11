@@ -8,14 +8,23 @@ export function useAuth() {
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      // Suppress expected refresh token errors - these are handled gracefully
+      if (error && !error.message.includes('refresh_token_not_found')) {
+        console.error('Auth session error:', error);
+      }
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
+        // Suppress expected token refresh errors
+        if (event === 'TOKEN_REFRESHED' && !session) {
+          // This is expected when refresh token is invalid - user will be logged out
+          return;
+        }
         setUser(session?.user ?? null);
         setLoading(false);
       }
