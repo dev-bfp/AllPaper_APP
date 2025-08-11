@@ -16,6 +16,7 @@ import { useTransactions, Transaction, CreateTransactionData } from '../../hooks
 import TransactionForm from './TransactionForm';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useCouples } from '../../hooks/useCouples';
 
 export default function TransactionList() {
   const { 
@@ -34,6 +35,7 @@ export default function TransactionList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all');
   const [filterCategory, setFilterCategory] = useState('');
+  const { profile, coupleMembers } = useCouples();
 
   // Filtrar transações
   const filteredTransactions = transactions.filter(transaction => {
@@ -81,6 +83,12 @@ export default function TransactionList() {
     setEditingTransaction(null);
   };
 
+  // Função para obter o nome do proprietário da transação
+  const getTransactionOwnerName = (userId: string) => {
+    if (userId === profile?.id) return 'Você';
+    const member = coupleMembers.find(m => m.id === userId);
+    return member?.name || 'Desconhecido';
+  };
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -183,9 +191,10 @@ export default function TransactionList() {
               <TransactionItem
                 key={transaction.id}
                 transaction={transaction}
-                onEdit={handleEdit}
-                onDelete={(id) => setDeleteConfirm(id)}
+                onEdit={transaction.user_id === profile?.id ? handleEdit : undefined}
+                onDelete={transaction.user_id === profile?.id ? (id) => setDeleteConfirm(id) : undefined}
                 onDuplicate={handleDuplicate}
+                ownerName={profile?.couple_id ? getTransactionOwnerName(transaction.user_id) : undefined}
               />
             ))}
           </div>
@@ -244,12 +253,13 @@ export default function TransactionList() {
 
 interface TransactionItemProps {
   transaction: Transaction;
-  onEdit: (transaction: Transaction) => void;
-  onDelete: (id: string) => void;
+  onEdit?: (transaction: Transaction) => void;
+  onDelete?: (id: string) => void;
   onDuplicate: (transaction: Transaction) => void;
+  ownerName?: string;
 }
 
-function TransactionItem({ transaction, onEdit, onDelete, onDuplicate }: TransactionItemProps) {
+function TransactionItem({ transaction, onEdit, onDelete, onDuplicate, ownerName }: TransactionItemProps) {
   const [showActions, setShowActions] = useState(false);
 
   const formatDate = (dateString: string) => {
@@ -287,6 +297,11 @@ function TransactionItem({ transaction, onEdit, onDelete, onDuplicate }: Transac
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                 {transaction.description}
+                {ownerName && ownerName !== 'Você' && (
+                  <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded-full">
+                    {ownerName}
+                  </span>
+                )}
               </p>
               <div className="flex items-center space-x-4 text-xs text-gray-500 dark:text-gray-400 mt-1">
                 <span className="flex items-center space-x-1">
@@ -334,16 +349,18 @@ function TransactionItem({ transaction, onEdit, onDelete, onDuplicate }: Transac
 
             {showActions && (
               <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-10">
-                <button
-                  onClick={() => {
-                    onEdit(transaction);
-                    setShowActions(false);
-                  }}
-                  className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center space-x-2"
-                >
-                  <Edit2 className="h-3 w-3" />
-                  <span>Editar</span>
-                </button>
+                {onEdit && (
+                  <button
+                    onClick={() => {
+                      onEdit(transaction);
+                      setShowActions(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center space-x-2"
+                  >
+                    <Edit2 className="h-3 w-3" />
+                    <span>Editar</span>
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     onDuplicate(transaction);
@@ -354,16 +371,18 @@ function TransactionItem({ transaction, onEdit, onDelete, onDuplicate }: Transac
                   <Copy className="h-3 w-3" />
                   <span>Duplicar</span>
                 </button>
-                <button
-                  onClick={() => {
-                    onDelete(transaction.id);
-                    setShowActions(false);
-                  }}
-                  className="w-full px-3 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center space-x-2"
-                >
-                  <Trash2 className="h-3 w-3" />
-                  <span>Excluir</span>
-                </button>
+                {onDelete && (
+                  <button
+                    onClick={() => {
+                      onDelete(transaction.id);
+                      setShowActions(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center space-x-2"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    <span>Excluir</span>
+                  </button>
+                )}
               </div>
             )}
           </div>

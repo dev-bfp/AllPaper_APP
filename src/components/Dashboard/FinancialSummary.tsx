@@ -1,6 +1,7 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Target } from 'lucide-react';
 import { useTransactions } from '../../hooks/useTransactions';
+import { useGoals } from '../../hooks/useGoals';
 
 interface SummaryCardProps {
   title: string;
@@ -35,6 +36,7 @@ function SummaryCard({ title, value, change, changeType, icon }: SummaryCardProp
 
 export default function FinancialSummary() {
   const { transactions } = useTransactions();
+  const { goals } = useGoals();
 
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
@@ -54,6 +56,18 @@ export default function FinancialSummary() {
 
   const totalBalance = totalIncome - totalExpenses;
 
+  // Calcular metas ativas
+  const activeGoals = goals.filter(goal => {
+    const progress = (goal.current_amount / goal.target_amount) * 100;
+    const daysRemaining = Math.ceil(
+      (new Date(goal.target_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+    );
+    return progress < 100 && daysRemaining >= 0;
+  });
+
+  const completedGoalsPercentage = goals.length > 0 
+    ? Math.round((goals.filter(goal => goal.current_amount >= goal.target_amount).length / goals.length) * 100)
+    : 0;
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       <SummaryCard
@@ -82,8 +96,8 @@ export default function FinancialSummary() {
       
       <SummaryCard
         title="Metas Ativas"
-        value="3"
-        change="67% concluídas"
+        value={activeGoals.length.toString()}
+        change={`${completedGoalsPercentage}% concluídas`}
         changeType="neutral"
         icon={<Target className="h-6 w-6 text-purple-600 dark:text-purple-400" />}
       />

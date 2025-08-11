@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
+import { useCouples } from './useCouples';
 
 export interface Transaction {
   id: string;
@@ -38,20 +39,37 @@ export function useTransactions() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+  const { profile } = useCouples();
 
   const fetchTransactions = async () => {
     if (!user) return;
 
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // Se o usuário faz parte de um casal, buscar transações do casal também
+      let query = supabase
         .from('transactions')
         .select(`
           *,
           card:cards(name, bank)
-        `)
-        .eq('user_id', user.id)
-        .order('due_date', { ascending: false });
+        `);
+
+      if (profile?.couple_id) {
+        // Buscar transações do usuário e do parceiro
+        const { data: coupleMembers } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('couple_id', profile.couple_id);
+        
+        const memberIds = coupleMembers?.map(member => member.id) || [user.id];
+        query = query.in('user_id', memberIds);
+      } else {
+        // Buscar apenas transações do usuário
+        query = query.eq('user_id', user.id);
+      }
+
+      const { data, error } = await query.order('due_date', { ascending: false });
 
       if (error) throw error;
       setTransactions(data || []);
@@ -172,7 +190,7 @@ export function useTransactions() {
 
   useEffect(() => {
     fetchTransactions();
-  }, [user]);
+  }, [user, profile?.couple_id]);
 
   return {
     transactions,

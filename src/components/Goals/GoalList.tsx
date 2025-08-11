@@ -12,6 +12,7 @@ import { useGoals } from '../../hooks/useGoals';
 import GoalCard from './GoalCard';
 import GoalForm from './GoalForm';
 import GoalProgressModal from './GoalProgressModal';
+import { useCouples } from '../../hooks/useCouples';
 
 export default function GoalList() {
   const { 
@@ -31,6 +32,7 @@ export default function GoalList() {
   const [progressGoal, setProgressGoal] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'completed' | 'overdue'>('all');
+  const { profile, coupleMembers } = useCouples();
 
   // Filtrar metas
   const filteredGoals = goals.filter(goal => {
@@ -76,6 +78,12 @@ export default function GoalList() {
     setEditingGoal(null);
   };
 
+  // Função para obter o nome do proprietário da meta
+  const getGoalOwnerName = (userId: string) => {
+    if (userId === profile?.id) return 'Você';
+    const member = coupleMembers.find(m => m.id === userId);
+    return member?.name || 'Desconhecido';
+  };
   // Estatísticas
   const stats = {
     total: goals.length,
@@ -220,9 +228,10 @@ export default function GoalList() {
               key={goal.id}
               goal={goal}
               progress={getGoalProgress(goal)}
-              onEdit={() => handleEdit(goal)}
-              onDelete={() => setDeleteConfirm(goal.id)}
-              onUpdateProgress={() => handleUpdateProgress(goal)}
+              onEdit={goal.user_id === profile?.id ? () => handleEdit(goal) : undefined}
+              onDelete={goal.user_id === profile?.id ? () => setDeleteConfirm(goal.id) : undefined}
+              onUpdateProgress={goal.user_id === profile?.id ? () => handleUpdateProgress(goal) : undefined}
+              ownerName={profile?.couple_id ? getGoalOwnerName(goal.user_id) : undefined}
             />
           ))}
         </div>

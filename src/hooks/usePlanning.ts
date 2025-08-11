@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
 import { Transaction } from './useTransactions';
+import { useCouples } from './useCouples';
 
 export interface Planning {
   id: string;
@@ -38,20 +39,37 @@ export function usePlanning() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+  const { profile } = useCouples();
 
   const fetchPlannings = async () => {
     if (!user) return;
 
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // Se o usuário faz parte de um casal, buscar planejamentos do casal também
+      let query = supabase
         .from('plannings')
         .select(`
           *,
           transaction:transactions(*)
-        `)
-        .eq('user_id', user.id)
-        .order('due_date', { ascending: true });
+        `);
+
+      if (profile?.couple_id) {
+        // Buscar planejamentos do usuário e do parceiro
+        const { data: coupleMembers } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('couple_id', profile.couple_id);
+        
+        const memberIds = coupleMembers?.map(member => member.id) || [user.id];
+        query = query.in('user_id', memberIds);
+      } else {
+        // Buscar apenas planejamentos do usuário
+        query = query.eq('user_id', user.id);
+      }
+
+      const { data, error } = await query.order('due_date', { ascending: true });
 
       if (error) throw error;
       
@@ -345,7 +363,7 @@ export function usePlanning() {
 
   useEffect(() => {
     fetchPlannings();
-  }, [user]);
+  }, [user, profile?.couple_id]);
 
   return {
     plannings,

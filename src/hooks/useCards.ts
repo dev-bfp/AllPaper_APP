@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
+import { useCouples } from './useCouples';
 
 export interface Card {
   id: string;
@@ -18,16 +19,32 @@ export function useCards() {
   const [cards, setCards] = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { profile } = useCouples();
 
   const fetchCards = async () => {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
+      // Se o usuário faz parte de um casal, buscar cartões do casal também
+      let query = supabase
         .from('cards')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .select('*');
+
+      if (profile?.couple_id) {
+        // Buscar cartões do usuário e do parceiro
+        const { data: coupleMembers } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('couple_id', profile.couple_id);
+        
+        const memberIds = coupleMembers?.map(member => member.id) || [user.id];
+        query = query.in('user_id', memberIds);
+      } else {
+        // Buscar apenas cartões do usuário
+        query = query.eq('user_id', user.id);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) throw error;
       setCards(Array.isArray(data) ? data : []);
@@ -111,7 +128,7 @@ export function useCards() {
 
   useEffect(() => {
     fetchCards();
-  }, [user]);
+  }, [user, profile?.couple_id]);
 
   return { cards, loading, refetch: fetchCards, addCard, updateCard, deleteCard, recalculateCardBalance };
 }

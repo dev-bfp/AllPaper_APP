@@ -21,6 +21,7 @@ import PlanningForm from './PlanningForm';
 import PlanningHistoryModal from './PlanningHistoryModal';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useCouples } from '../../hooks/useCouples';
 
 export default function PlanningList() {
   const { 
@@ -42,6 +43,7 @@ export default function PlanningList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'pending' | 'overdue'>('all');
   const [filterType, setFilterType] = useState<'all' | 'recurring' | 'one-time'>('all');
+  const { profile, coupleMembers } = useCouples();
 
   // Filtrar planejamentos
   const filteredPlannings = plannings.filter(planning => {
@@ -96,6 +98,12 @@ export default function PlanningList() {
     setEditingPlanning(null);
   };
 
+  // Função para obter o nome do proprietário do planejamento
+  const getPlanningOwnerName = (userId: string) => {
+    if (userId === profile?.id) return 'Você';
+    const member = coupleMembers.find(m => m.id === userId);
+    return member?.name || 'Desconhecido';
+  };
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'paid':
@@ -237,14 +245,15 @@ export default function PlanningList() {
               <PlanningItem
                 key={planning.id}
                 planning={planning}
-                onEdit={handleEdit}
-                onDelete={(id) => setDeleteConfirm(id)}
-                onMarkAsPaid={handleMarkAsPaid}
-                onReversePaidStatus={(id) => setShowReverseConfirm(id)}
+                onEdit={planning.user_id === profile?.id ? handleEdit : undefined}
+                onDelete={planning.user_id === profile?.id ? (id) => setDeleteConfirm(id) : undefined}
+                onMarkAsPaid={planning.user_id === profile?.id ? handleMarkAsPaid : undefined}
+                onReversePaidStatus={planning.user_id === profile?.id ? (id) => setShowReverseConfirm(id) : undefined}
                 onShowHistory={(planning) => setShowHistory(planning)}
                 getStatusIcon={getStatusIcon}
                 getStatusText={getStatusText}
                 getStatusColor={getStatusColor}
+                ownerName={profile?.couple_id ? getPlanningOwnerName(planning.user_id) : undefined}
               />
             ))}
           </div>
@@ -337,14 +346,15 @@ export default function PlanningList() {
 
 interface PlanningItemProps {
   planning: PlanningWithTransaction;
-  onEdit: (planning: PlanningWithTransaction) => void;
-  onDelete: (id: string) => void;
-  onMarkAsPaid: (id: string) => void;
-  onReversePaidStatus: (id: string) => void;
+  onEdit?: (planning: PlanningWithTransaction) => void;
+  onDelete?: (id: string) => void;
+  onMarkAsPaid?: (id: string) => void;
+  onReversePaidStatus?: (id: string) => void;
   onShowHistory: (planning: PlanningWithTransaction) => void;
   getStatusIcon: (status: string) => React.ReactNode;
   getStatusText: (status: string) => string;
   getStatusColor: (status: string) => string;
+  ownerName?: string;
 }
 
 function PlanningItem({ 
@@ -356,7 +366,8 @@ function PlanningItem({
   onShowHistory,
   getStatusIcon,
   getStatusText,
-  getStatusColor
+  getStatusColor,
+  ownerName
 }: PlanningItemProps) {
   const [showActions, setShowActions] = useState(false);
 
@@ -387,6 +398,11 @@ function PlanningItem({
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                 {planning.description}
+                {ownerName && ownerName !== 'Você' && (
+                  <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded-full">
+                    {ownerName}
+                  </span>
+                )}
               </p>
               <div className="flex items-center space-x-4 text-xs text-gray-500 dark:text-gray-400 mt-1">
                 <span className="flex items-center space-x-1">
@@ -418,9 +434,9 @@ function PlanningItem({
           </span>
 
           <div className="flex items-center space-x-1">
-            {planning.status !== 'paid' && (
+            {planning.status !== 'paid' && onMarkAsPaid && (
               <button
-                onClick={() => onMarkAsPaid(planning.id)}
+                onClick={() => onMarkAsPaid!(planning.id)}
                 className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/20 transition-colors"
                 title="Marcar como pago"
               >
@@ -428,9 +444,9 @@ function PlanningItem({
               </button>
             )}
 
-            {planning.status === 'paid' && planning.transaction_id && (
+            {planning.status === 'paid' && planning.transaction_id && onReversePaidStatus && (
               <button
-                onClick={() => onReversePaidStatus(planning.id)}
+                onClick={() => onReversePaidStatus!(planning.id)}
                 className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors"
                 title="Estornar pagamento"
               >
@@ -458,10 +474,10 @@ function PlanningItem({
 
               {showActions && (
                 <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-10">
-                  {planning.status !== 'paid' && (
+                  {planning.status !== 'paid' && onEdit && (
                     <button
                       onClick={() => {
-                        onEdit(planning);
+                        onEdit!(planning);
                         setShowActions(false);
                       }}
                       className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center space-x-2"
@@ -470,16 +486,18 @@ function PlanningItem({
                       <span>Editar</span>
                     </button>
                   )}
-                  <button
-                    onClick={() => {
-                      onDelete(planning.id);
-                      setShowActions(false);
-                    }}
-                    className="w-full px-3 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center space-x-2"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                    <span>Excluir</span>
-                  </button>
+                  {onDelete && (
+                    <button
+                      onClick={() => {
+                        onDelete!(planning.id);
+                        setShowActions(false);
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center space-x-2"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      <span>Excluir</span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>

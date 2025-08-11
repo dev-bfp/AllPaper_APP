@@ -14,6 +14,7 @@ interface GoalCardProps {
   onEdit?: () => void;
   onDelete?: () => void;
   onUpdateProgress?: () => void;
+  ownerName?: string;
 }
 
 export default function GoalCard({
@@ -21,7 +22,8 @@ export default function GoalCard({
   progress,
   onEdit,
   onDelete,
-  onUpdateProgress
+  onUpdateProgress,
+  ownerName
 }: GoalCardProps) {
   const [showActions, setShowActions] = React.useState(false);
 
@@ -119,6 +121,11 @@ export default function GoalCard({
             <h3 className="text-lg font-medium text-gray-900 dark:text-white">{goal.name}</h3>
             {goal.description && (
               <p className="text-sm text-gray-500 dark:text-gray-400">{goal.description}</p>
+            )}
+            {ownerName && ownerName !== 'Você' && (
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                Meta de {ownerName}
+              </p>
             )}
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
+import { useCouples } from './useCouples';
 
 export interface Goal {
   id: string;
@@ -27,17 +28,34 @@ export function useGoals() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+  const { profile } = useCouples();
 
   const fetchGoals = async () => {
     if (!user) return;
 
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // Se o usuário faz parte de um casal, buscar metas do casal também
+      let query = supabase
         .from('goals')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .select('*');
+
+      if (profile?.couple_id) {
+        // Buscar metas do usuário, do parceiro e metas compartilhadas do casal
+        const { data: coupleMembers } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('couple_id', profile.couple_id);
+        
+        const memberIds = coupleMembers?.map(member => member.id) || [user.id];
+        query = query.or(`user_id.in.(${memberIds.join(',')}),couple_id.eq.${profile.couple_id}`);
+      } else {
+        // Buscar apenas metas do usuário
+        query = query.eq('user_id', user.id);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) throw error;
       setGoals(data || []);
@@ -159,7 +177,7 @@ export function useGoals() {
 
   useEffect(() => {
     fetchGoals();
-  }, [user]);
+  }, [user, profile?.couple_id]);
 
   return {
     goals,

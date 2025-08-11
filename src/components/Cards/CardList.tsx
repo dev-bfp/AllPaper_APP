@@ -1,6 +1,7 @@
 import React from 'react';
 import { CreditCard, Eye, EyeOff, Edit2, Trash2, MoreVertical } from 'lucide-react';
 import { useCards } from '../../hooks/useCards';
+import { useCouples } from '../../hooks/useCouples';
 
 interface CardActionsProps {
   card: Card;
@@ -54,6 +55,7 @@ export default function CardList() {
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState<string | null>(null);
   const [showAddCardModal, setShowAddCardModal] = React.useState(false);
   const { cards, loading, refetch, addCard, updateCard, deleteCard } = useCards();
+  const { profile, coupleMembers } = useCouples();
 
   const handleEdit = (card: Card) => {
     setEditingCard(card);
@@ -78,6 +80,12 @@ export default function CardList() {
     setShowAddCardModal(false);
   };
 
+  // Função para obter o nome do proprietário do cartão
+  const getCardOwnerName = (userId: string) => {
+    if (userId === profile?.id) return 'Você';
+    const member = coupleMembers.find(m => m.id === userId);
+    return member?.name || 'Desconhecido';
+  };
   if (loading) {
     return <p>Carregando cartões...</p>;
   }
@@ -111,8 +119,8 @@ export default function CardList() {
               <div className="absolute top-4 right-4">
                 <CardActions
                   card={card}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
+                  onEdit={card.user_id === profile?.id ? handleEdit : undefined}
+                  onDelete={card.user_id === profile?.id ? handleDelete : undefined}
                 />
               </div>
               
@@ -120,6 +128,11 @@ export default function CardList() {
                 <div className="flex items-center space-x-2">
                   <CreditCard className="h-6 w-6" />
                   <span className="font-medium">{card.bank}</span>
+                  {profile?.couple_id && card.user_id !== profile?.id && (
+                    <span className="text-xs bg-white/20 px-2 py-1 rounded-full">
+                      {getCardOwnerName(card.user_id)}
+                    </span>
+                  )}
                 </div>
                 <span className="text-xs bg-white/20 px-2 py-1 rounded-full mr-8">
                   {card.type === 'credit' ? 'Crédito' : 'Débito'}
