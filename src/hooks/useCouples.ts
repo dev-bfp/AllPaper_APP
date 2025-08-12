@@ -86,7 +86,15 @@ export function useCouples() {
         .eq('id', profile.couple_id)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // Couple record not found, clear couple data
+          setCouple(null);
+          setCoupleMembers([]);
+          return;
+        }
+        throw error;
+      }
       setCouple(data);
 
       // Buscar membros do casal
