@@ -84,17 +84,19 @@ export function useCouples() {
         .from('couples')
         .select('*')
         .eq('id', profile.couple_id)
-        .single();
+        .maybeSingle();
 
       if (error) {
-        if (error.code === 'PGRST116') {
-          // Couple record not found, clear couple data
-          setCouple(null);
-          setCoupleMembers([]);
-          return;
-        }
         throw error;
       }
+      
+      if (!data) {
+        // Couple record not found, clear couple data
+        setCouple(null);
+        setCoupleMembers([]);
+        return;
+      }
+      
       setCouple(data);
 
       // Buscar membros do casal
